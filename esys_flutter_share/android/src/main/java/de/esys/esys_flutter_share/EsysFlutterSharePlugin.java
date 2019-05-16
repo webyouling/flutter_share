@@ -1,0 +1,104 @@
+package de.esys.esys_flutter_share;
+
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
+
+import androidx.core.content.FileProvider;
+import io.flutter.plugin.common.MethodCall;
+import io.flutter.plugin.common.MethodChannel;
+import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
+import io.flutter.plugin.common.MethodChannel.Result;
+import io.flutter.plugin.common.PluginRegistry.Registrar;
+
+/** EsysFlutterSharePlugin */
+public class EsysFlutterSharePlugin implements MethodCallHandler {
+
+  final String PROVIDER_AUTH_EXT = ".fileprovider.github.com/orgs/esysberlin/esys-flutter-share";
+  private Registrar _registrar;
+
+  private EsysFlutterSharePlugin(Registrar registrar) {
+    this._registrar = registrar;
+  }
+
+  /**
+   * Plugin registration.
+   */
+  public static void registerWith(Registrar registrar) {
+    final MethodChannel channel = new MethodChannel(registrar.messenger(), "channel:github.com/orgs/esysberlin/esys-flutter-share");
+    channel.setMethodCallHandler(new EsysFlutterSharePlugin(registrar));
+  }
+
+  @Override
+  public void onMethodCall(MethodCall call, Result result) {
+    if (call.method.equals("getPlatformVersion")) {
+      result.success("Android " + android.os.Build.VERSION.RELEASE);
+    }else if (call.method.equals("text")) {
+      text(call.arguments);
+    }else if (call.method.equals("file")) {
+      file(call.arguments);
+    }else if (call.method.equals("files")) {
+      files(call.arguments);
+    }else {
+      result.notImplemented();
+    }
+  }
+
+  private void text(Object arguments) {
+    HashMap<String, String> argsMap = (HashMap<String, String>) arguments;
+    String title = argsMap.get("title");
+    String textToSend = argsMap.get("text");
+    String mimeType = argsMap.get("mimeType");
+
+    Context activeContext = _registrar.activeContext();
+
+    Intent shareIntent = new Intent(Intent.ACTION_SEND);
+    shareIntent.setType(mimeType);
+    shareIntent.putExtra(Intent.EXTRA_TEXT, textToSend);
+    activeContext.startActivity(Intent.createChooser(shareIntent, title));
+  }
+
+  private void file(Object arguments) {
+    HashMap<String, String> argsMap = (HashMap<String, String>) arguments;
+    String title = argsMap.get("title");
+    String name = argsMap.get("name");
+    String mimeType = argsMap.get("mimeType");
+
+    Context activeContext = _registrar.activeContext();
+
+    Intent shareIntent = new Intent(Intent.ACTION_SEND);
+    shareIntent.setType(mimeType);
+    File file = new File(activeContext.getCacheDir(), name);
+    String fileProviderAuthority = activeContext.getPackageName() + PROVIDER_AUTH_EXT;
+    Uri contentUri = FileProvider.getUriForFile(activeContext, fileProviderAuthority, file);
+    shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+    activeContext.startActivity(Intent.createChooser(shareIntent, title));
+  }
+
+  private void files(Object arguments) {
+    HashMap<String, Object> argsMap = (HashMap<String, Object>) arguments;
+    String title = (String) argsMap.get("title");
+    ArrayList<String> names = (ArrayList<String>) argsMap.get("names");
+    String mimeType = (String) argsMap.get("mimeType");
+
+    Context activeContext = _registrar.activeContext();
+
+    Intent shareIntent = new Intent(Intent.ACTION_SEND_MULTIPLE);
+    shareIntent.setType(mimeType);
+
+    ArrayList<Uri> contentUris = new ArrayList<>();
+
+    for (String name : names) {
+      File file = new File(activeContext.getCacheDir(), name);
+      String fileProviderAuthority = activeContext.getPackageName() + PROVIDER_AUTH_EXT;
+      contentUris.add(FileProvider.getUriForFile(activeContext, fileProviderAuthority, file));
+    }
+
+    shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, contentUris);
+    activeContext.startActivity(Intent.createChooser(shareIntent, title));
+  }
+}
